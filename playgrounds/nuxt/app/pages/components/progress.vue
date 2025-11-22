@@ -54,7 +54,7 @@ onMounted(() => {
     :container-props="{ 'data-orientation': orientation }"
     container-class="gap-4 data-[orientation=horizontal]:w-48 data-[orientation=vertical]:h-48 data-[orientation=vertical]:flex-row"
   >
-    <UProgress :orientation="orientation" v-bind="props" />
+    <!-- <UProgress :orientation="orientation" v-bind="props" />
     <UProgress v-model="value2" :max="max" status :orientation="orientation" v-bind="props" />
     <UProgress
       v-model="value2"
@@ -63,6 +63,9 @@ onMounted(() => {
       inverted
       :orientation="orientation"
       v-bind="props"
-    />
+    /> -->
+    <UProgress group :orientation="orientation">
+      <UProgressMeter v-for="(step, index) in max" :key="step" :model-value="index*20" />
+    </UProgress>
   </Matrix>
 </template>

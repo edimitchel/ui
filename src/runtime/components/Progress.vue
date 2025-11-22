@@ -5,7 +5,7 @@ import type { AppConfig } from '@nuxt/schema'
 import theme from '#build/ui/progress'
 import type { ComponentConfig } from '../types/tv'
 
-type Progress = ComponentConfig<typeof theme, AppConfig, 'progress'>
+export type Progress = ComponentConfig<typeof theme, AppConfig, 'progress'>
 
 export interface ProgressProps extends Pick<ProgressRootProps, 'getValueLabel' | 'getValueText' | 'modelValue'> {
   /**
@@ -45,15 +45,23 @@ export interface ProgressEmits extends ProgressRootEmits {}
 
 export type ProgressSlots = {
   status(props: { percent?: number }): any
+  default(): any
 } & {
   [key: string]: (props: { step: number }) => any
 }
 
+export interface ProvideProgressContext {
+  updateGroupValue: (value: number) => void
+  max: ComputedRef<number>
+}
+
+export const [injectProgress, provideProgress] = createContext<ProvideProgressContext>('progress')
+
 </script>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Primitive, ProgressRoot, ProgressIndicator, useForwardPropsEmits } from 'reka-ui'
+import { computed, ref, onMounted, type ComputedRef } from 'vue'
+import { Primitive, ProgressRoot, ProgressIndicator, useForwardPropsEmits, createContext } from 'reka-ui'
 import { reactivePick } from '@vueuse/core'
 import { useAppConfig } from '#imports'
 import { useLocale } from '../composables/useLocale'
@@ -72,14 +80,37 @@ const appConfig = useAppConfig() as Progress['AppConfig']
 
 const rootProps = useForwardPropsEmits(reactivePick(props, 'getValueLabel', 'getValueText', 'modelValue'), emits)
 
-const isIndeterminate = computed(() => rootProps.value.modelValue === null)
+const isGrouped = computed(() => slots.default())
+
+const totalGroupValue = ref(0)
+
+if (isGrouped.value) {
+// Provide a function for child components to update the total value
+  provideProgress({
+    updateGroupValue: (value: number) => {
+      totalGroupValue.value += value
+    },
+    max: computed(() => Number(props.max))
+  })
+}
+
+// Reset total value on mount if group is active
+onMounted(() => {
+  if (isGrouped.value) {
+    totalGroupValue.value = 0
+  }
+})
+
+const isIndeterminate = computed(() => !isGrouped.value && rootProps.value.modelValue === null)
 const hasSteps = computed(() => Array.isArray(props.max))
 
 const realMax = computed(() => {
-  if (isIndeterminate.value || !props.max) {
+  if (isIndeterminate.value || (!props.max && !isGrouped.value)) {
     return undefined
   }
-
+  if (isGrouped.value && !props.max) {
+    return totalGroupValue.value || 100
+  }
   if (Array.isArray(props.max)) {
     return props.max.length - 1
   }
@@ -174,7 +205,9 @@ const ui = computed(() => tv({ extend: tv(theme), ...(appConfig.ui?.progress || 
     </div>
 
     <ProgressRoot v-bind="rootProps" :max="realMax" :class="ui.base({ class: props.ui?.base })" style="transform: translateZ(0)">
-      <ProgressIndicator :class="ui.indicator({ class: props.ui?.indicator })" :style="indicatorStyle" />
+      <slot>
+        <ProgressIndicator :class="ui.indicator({ class: props.ui?.indicator })" :style="indicatorStyle" />
+      </slot>
     </ProgressRoot>
 
     <div v-if="hasSteps" :class="ui.steps({ class: props.ui?.steps })">
@@ -184,5 +217,6 @@ const ui = computed(() => tv({ extend: tv(theme), ...(appConfig.ui?.progress || 
         </slot>
       </div>
     </div>
+    <slot />
   </Primitive>
 </template>
